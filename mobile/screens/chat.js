@@ -8,15 +8,16 @@ import {
   FlatList,
   Animated,
   Platform,
-  ScrollView,
 } from "react-native";
-import Icon from "react-native-vector-icons/Ionicons";
-import EmojiIcon from "react-native-vector-icons/MaterialIcons";
+import IoIcon from "react-native-vector-icons/Ionicons";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import Attachment from "react-native-vector-icons/Entypo";
 import EmojiSelector, { Categories } from "react-native-emoji-selector";
 import io from "socket.io-client";
 import moment from "moment";
+import URL from "../url";
 
-const socket = io.connect("http://192.168.1.106:5000");
+const socket = io.connect(`${URL}`);
 
 const user = {
   user_id: 12,
@@ -29,7 +30,96 @@ const ChatScreen = () => {
   const [newMessage, setNewMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const animation = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef(null); // Ref for FlatList
+  const flatListRef = useRef(null);
+
+  useEffect(() => {
+    socket = io.connect(`${CHAT_URL}`);
+    const fetchData = async () => {
+      try {
+        socket.on("connect", () => {
+          console.log("Connected to Chat Server");
+          try {
+            fetch(`${CHAT_URL}/fetchRoom/${user.id}`)
+              .then((roomResponse) => roomResponse.json())
+              .then((roomJson) => {
+                if (roomJson.success === true) {
+                  console.log(roomJson.id);
+                  setRoom(roomJson.roomId);
+                  socket.emit("join_room", roomJson.roomId);
+
+                  fetch(`${CHAT_URL}/chats/${roomJson.id}`)
+                    .then((chatsResponse) => chatsResponse.json())
+                    .then((chatsJson) => {
+                      if (chatsJson.success === true) {
+                        setChats(chatsJson.chats);
+                      }
+                    })
+                    .catch((error) => {
+                      console.error("Error fetching chats:", error);
+                    });
+                }
+              })
+              .catch((error) => {
+                console.error("Error fetching room:", error);
+              });
+          } catch (error) {
+            console.error("Error fetching room and chats:", error);
+          }
+        });
+      } catch (error) {
+        console.error("Error retrieving data from AsyncStorage:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // console.log(chats);
+
+  const imageLibrary = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      alert("Sorry! Media library access denied");
+    } else {
+      const response = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+      });
+      if (!response.cancelled) {
+        const fileExtension = response.assets[0].uri.split(".").pop();
+        const filename = `chat-${Date.now()}.${fileExtension}`;
+
+        const formData = new FormData();
+        formData.append("filename", filename);
+        formData.append("chat", {
+          uri: response.assets[0].uri,
+          name: filename,
+          type: `image/${fileExtension}`,
+        });
+
+        const uploadResponse = await fetch(`${CHAT_URL}/uploadImage`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const responseData = await uploadResponse.json();
+        if (responseData.success === true) {
+          const messageData = {
+            room: room,
+            author: user.username,
+            message: filename,
+            time: new Date().toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            }),
+          };
+
+          await socket.emit("upload_image", messageData);
+        }
+      }
+    }
+  };
 
   const sendMessage = async () => {
     if (newMessage.trim() !== "") {
@@ -59,6 +149,7 @@ const ChatScreen = () => {
   useEffect(() => {
     socket.on("receive_message", (data) => {
       setChats((prevChats) => [...prevChats, data]);
+      console.log(data);
     });
   }, []);
 
@@ -67,30 +158,6 @@ const ChatScreen = () => {
       flatListRef.current.scrollToEnd({ animated: true });
     }
   }, [chats]);
-
-  useEffect(() => {
-    socket.on("connect", () => {
-      fetchRoomAndChats();
-    });
-  }, []);
-
-  const fetchRoomAndChats = () => {
-    fetch(`http://192.168.1.106:5000/fetchRoom/${user.user_id}`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success === true) {
-          setRoom(json.roomId);
-          socket.emit("join_room", json.roomId);
-          fetch(`http://192.168.1.106:5000/chats/${json.id}`)
-            .then((res) => res.json())
-            .then((json) => {
-              if (json.success === true) {
-                setChats(json.chats);
-              }
-            });
-        }
-      });
-  };
 
   return (
     <View style={styles.container}>
@@ -136,7 +203,7 @@ const ChatScreen = () => {
           style={styles.emojiButton}
           onPress={toggleEmojiPicker}
         >
-          <EmojiIcon name="emoji-emotions" style={styles.sendButtonText} />
+          <Icon name="emoji-emotions" style={styles.sendButtonText} />
         </TouchableOpacity>
         <TextInput
           style={styles.input}
@@ -145,8 +212,11 @@ const ChatScreen = () => {
           placeholder="Type your message..."
           placeholderTextColor="#888"
         />
+        <TouchableOpacity style={styles.attachment} onPress={imageLibrary}>
+          <Attachment name="attachment" size={24} color="#f8971d" />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Icon name="send" color="#00C209" style={styles.sendButtonText} />
+          <IoIcon name="send" style={styles.sendButtonText} />
         </TouchableOpacity>
       </View>
       {showEmojiPicker && (

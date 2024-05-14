@@ -7,10 +7,10 @@ import {
   heightPercentageToDP as hp,
 } from "react-native-responsive-screen";
 import Registration from "./screens/registration";
-import Login from "./screens/login";
 import ChatList from "./screens/chatList";
 import Logo from "react-native-vector-icons/FontAwesome";
 import ChatScreen from "./screens/chat";
+import Toast from "react-native-toast-message";
 
 const Stack = createStackNavigator();
 
@@ -36,7 +36,9 @@ export default function App() {
       shadowRadius: 4,
       elevation: 4,
       backgroundColor: "#1C1C1C",
-      height: Platform.OS === "ios" ? hp(12) : 60,
+      height: Platform.OS === "ios" ? hp(12) : 80,
+      // borderBottomLeftRadius: 20,
+      // borderBottomRightRadius: 20,
     },
     headerLeft: route.name === "chatList" ? null : undefined,
     headerTintColor: "#fff",
@@ -47,15 +49,10 @@ export default function App() {
   });
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="registration">
+      <Stack.Navigator initialRouteName="chatList">
         <Stack.Screen
           name="registration"
           component={Registration}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="login"
-          component={Login}
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -73,6 +70,7 @@ export default function App() {
           }
         />
       </Stack.Navigator>
+      <Toast />
     </NavigationContainer>
   );
 }
